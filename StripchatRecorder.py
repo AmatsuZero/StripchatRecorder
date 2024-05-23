@@ -41,6 +41,7 @@ def readConfig():
         'wishlist': Config.get('paths', 'wishlist'),
         'interval': int(Config.get('settings', 'checkInterval')),
         'postProcessingCommand': Config.get('settings', 'postProcessingCommand'),
+        'proxy': Config.get('settings', 'proxy'),
     }
     try:
         setting['postProcessingThreads'] = int(Config.get('settings', 'postProcessingThreads'))
@@ -134,18 +135,39 @@ class Modelo(threading.Thread):
 
     def isOnline(self):
         try:
-            resp = requests.get(f'https://stripchat.com/api/front/v2/models/username/{self.modelo}/cam').json()
+            proxy = setting['proxy']
+            proxies = None
+            if len(proxy):
+                http_proxy  = proxy
+                https_proxy = proxy
+                proxies = { 
+                    "http"  : http_proxy, 
+                    "https" : https_proxy, 
+                }
+            resp = requests.get(f'https://stripchat.com/api/front/v2/models/username/{self.modelo}/cam', proxies=proxies).json()
             hls_url = ''
             if 'cam' in resp.keys():
                 if {'isCamAvailable', 'streamName', 'viewServers'} <= resp['cam'].keys():
-                    if 'flashphoner-hls' in resp['cam']['viewServers'].keys():
+                    if 'flashphoner-hls' in resp['cam']['viewServers'].keys() and self.cam_params_check(resp['cam']):
                         hls_url = f'https://b-{resp["cam"]["viewServers"]["flashphoner-hls"]}.doppiocdn.com/hls/{resp["cam"]["streamName"]}/{resp["cam"]["streamName"]}.m3u8'
             if len(hls_url):
                 return hls_url
             else:
                 return False
-        except:
+        except Exception as e:
+            print(e)
             return False
+        
+    def cam_params_check(self, cam) -> bool:        
+         if not cam["viewServers"]["flashphoner-hls"]:
+             return False
+         
+         if not cam["streamName"]:
+             return False
+         
+         return True
+         
+             
 
     def stop(self):
         self._stopevent.set()
